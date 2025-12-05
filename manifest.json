@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Clean URL Copier",
+  "description": "拡張アイコンを押すだけで現在のタブURLから追跡・アフィリエイトクエリを削除し、Amazonリンクは最短の /dp/ASIN 形式にしてコピーします。",
+  "version": "0.1.0",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardWrite",
+    "notifications"
+  ],
+  "action": {
+    "default_title": "クリーンURLをコピー",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icons/icon-16.png",
+        "icons/icon-32.png",
+        "icons/icon-48.png",
+        "icons/icon-128.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
