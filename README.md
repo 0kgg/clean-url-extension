@@ -19,6 +19,10 @@ https://www.amazon.co.jp/dp/B093WN4KDV
 - Amazonリンクをホスト維持のまま `/dp/<ASIN>` に正規化（ASINをパス/クエリから抽出）
 - ポップアップ起動時にAmazon商品ページから商品名（`#productTitle`）、価格（`.a-price .a-offscreen` ほか）、色（`#variation_color_name .selection`）、サイズ（`#variation_size_name .selection`）、個数（`#quantity`）を自動抽出し、フォームへプレビュー
 - フォーム内容は自由に編集可。「コピー」ボタンで整形テキストをクリップボードへ書き込み
+- **商品名補助ボタン**
+  - 「短縮」: 詰め込みキーワードをルールで切り落とし（ブランド `[...]` / `【...】` は温存、区切り記号・ストップ語彙・末尾括弧・トークン重複を処理）
+  - 「型番」: 商品詳細表から抽出した `[ブランド] 型番 <元タイトル先頭12文字>` に再構成（発注書向け）
+- **ASIN別の商品名保存（自動）**: コピー時に編集後のタイトルを `chrome.storage.local` に ASIN キーで保存。次回同じ商品を開くと自動復元され「保存済」バッジが表示される。バッジの「戻す」で元の Amazon タイトルに戻せる
 
 ## インストール（ローカル読み込み）
 1. `chrome://extensions` を開き、デベロッパーモードをON。
@@ -30,6 +34,7 @@ https://www.amazon.co.jp/dp/B093WN4KDV
 - `activeTab`: 現在タブのURL取得
 - `scripting`: 商品ページ（DOM）からの情報抽出
 - `clipboardWrite`: クリップボード書き込み
+- `storage`: ASIN別の編集済み商品名の永続化
 
 ## 構成
 - `manifest.json` — MV3 マニフェスト。アイコン/権限/ポップアップを定義。
