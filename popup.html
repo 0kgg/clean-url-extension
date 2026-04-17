@@ -71,6 +71,12 @@
     }
     button.mini:hover { background: #e5e7eb; }
     button.mini:active { background: #d1d5db; }
+    input.mini-input {
+      width: 44px;
+      padding: 1px 4px;
+      font-size: 11px;
+      text-align: center;
+    }
     .label-group { display: flex; align-items: center; gap: 6px; }
     .button-group { display: flex; gap: 4px; }
     .badge {
@@ -120,6 +126,9 @@
     </div>
     <div class="button-group">
       <button type="button" id="model-btn" class="mini">型番</button>
+      <input type="number" id="token-count" class="mini-input"
+             min="1" max="20" value="5"
+             title="短縮時の最大トークン数（ブランド除く）">
       <button type="button" id="shorten-btn" class="mini">短縮</button>
     </div>
   </div>

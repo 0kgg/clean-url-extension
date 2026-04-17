@@ -257,7 +257,7 @@ const SHORTEN_STOP_KEYWORDS = [
   "正規品", "並行輸入", "新品", "未使用"
 ];
 
-function shortenTitle(text) {
+function shortenTitle(text, maxTokens) {
   const original = (text || "").trim();
   if (!original) return text;
 
@@ -295,7 +295,10 @@ function shortenTitle(text) {
       deduped.push(t);
     }
   }
-  cut = deduped.join(" ");
+
+  const cap = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 0;
+  const capped = cap && deduped.length > cap ? deduped.slice(0, cap) : deduped;
+  cut = capped.join(" ");
 
   cut = cut.replace(/[\s　・･:：,、。\-–—]+$/u, "").trim();
   if (cut.length < 3) return text;
@@ -303,28 +306,9 @@ function shortenTitle(text) {
   return brand ? `${brand} ${cut}`.trim() : cut;
 }
 
-function buildModelTitle(originalTitle, brand, model) {
+function buildModelTitle(brand, model) {
   if (!model) return "";
-  const shortened = shortenTitle(originalTitle || "");
-  let hint = shortened
-    .replace(/^\s*[\[【][^\]】]+[\]】]\s*/, "")
-    .trim();
-
-  if (brand && hint.toLowerCase().startsWith(brand.toLowerCase())) {
-    const after = hint.charAt(brand.length);
-    if (!after || /\s/.test(after)) {
-      hint = hint.slice(brand.length).trim();
-    }
-  }
-
-  const MAX_HINT_TOKENS = 4;
-  const tokens = hint.split(/\s+/).filter(Boolean);
-  if (tokens.length > MAX_HINT_TOKENS) {
-    hint = tokens.slice(0, MAX_HINT_TOKENS).join(" ");
-  }
-
-  const prefix = brand ? `[${brand}] ${model}` : model;
-  return hint ? `${prefix} ${hint}` : prefix;
+  return brand ? `[${brand}] ${model}` : model;
 }
 
 async function loadSavedTitle(asin) {
@@ -352,6 +336,21 @@ async function deleteSavedTitle(asin) {
     const { titles = {} } = await chrome.storage.local.get("titles");
     delete titles[asin];
     await chrome.storage.local.set({ titles });
+  } catch (_err) {}
+}
+
+async function loadMaxTokens() {
+  try {
+    const { maxTokens = 5 } = await chrome.storage.local.get("maxTokens");
+    return Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 5;
+  } catch (_err) {
+    return 5;
+  }
+}
+
+async function saveMaxTokens(n) {
+  try {
+    await chrome.storage.local.set({ maxTokens: n });
   } catch (_err) {}
 }
 
@@ -432,6 +431,13 @@ async function init() {
     titleEl.value = state.originalTitle;
   }
 
+  const tokenEl = document.getElementById("token-count");
+  tokenEl.value = await loadMaxTokens();
+  tokenEl.addEventListener("change", async () => {
+    const n = parseInt(tokenEl.value, 10);
+    if (Number.isFinite(n) && n > 0) await saveMaxTokens(n);
+  });
+
   document.getElementById("copy-btn").addEventListener("click", onCopy);
   document.getElementById("shorten-btn").addEventListener("click", onShorten);
   document.getElementById("model-btn").addEventListener("click", onApplyModel);
@@ -440,7 +446,9 @@ async function init() {
 
 function onShorten() {
   const el = document.getElementById("title");
-  el.value = shortenTitle(el.value);
+  const n = parseInt(document.getElementById("token-count").value, 10);
+  const maxTokens = Number.isFinite(n) && n > 0 ? n : 0;
+  el.value = shortenTitle(el.value, maxTokens);
 }
 
 function onApplyModel() {
@@ -448,8 +456,7 @@ function onApplyModel() {
     setStatus("型番が見つかりません", true);
     return;
   }
-  const base = state.originalTitle || document.getElementById("title").value;
-  const built = buildModelTitle(base, state.brand, state.model);
+  const built = buildModelTitle(state.brand, state.model);
   if (built) {
     document.getElementById("title").value = built;
     setStatus("");
