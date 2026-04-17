@@ -92,29 +92,75 @@ function removeTrackingParams(url) {
 }
 
 function extractProduct() {
+  const clean = (s) => (s || "").replace(/\s+/g, " ").trim();
   const pickText = (sel) => {
     const el = document.querySelector(sel);
-    return el ? el.textContent.trim().replace(/\s+/g, " ") : "";
+    return el ? clean(el.textContent) : "";
+  };
+  const firstText = (selectors) => {
+    for (const sel of selectors) {
+      const t = pickText(sel);
+      if (t) return t;
+    }
+    return "";
+  };
+
+  const findOverviewValue = (labelRegex) => {
+    const rows = document.querySelectorAll(
+      "#productOverview_feature_div tr, #productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr"
+    );
+    for (const row of rows) {
+      const cells = row.querySelectorAll("td, th");
+      if (cells.length < 2) continue;
+      const label = clean(cells[0].textContent);
+      if (labelRegex.test(label)) {
+        const val = clean(cells[cells.length - 1].textContent);
+        if (val && val !== label) return val;
+      }
+    }
+    return "";
+  };
+
+  const pickVariant = (kind) => {
+    const config = {
+      color: {
+        selectors: [
+          "#variation_color_name .selection",
+          "#inline-twister-expanded-dimension-text-color_name",
+          "#inline-twister-row-color_name .a-truncate-cut",
+          "tr.po-color td:nth-child(2) span.po-break-word",
+          "tr.po-color td:nth-child(2) span"
+        ],
+        label: /(色|カラー|color)/i
+      },
+      size: {
+        selectors: [
+          "#variation_size_name .selection",
+          "#inline-twister-expanded-dimension-text-size_name",
+          "#inline-twister-row-size_name .a-truncate-cut",
+          "tr.po-size td:nth-child(2) span.po-break-word",
+          "tr.po-size td:nth-child(2) span",
+          "#variation_style_name .selection"
+        ],
+        label: /(サイズ|寸法|size)/i
+      }
+    }[kind];
+    return firstText(config.selectors) || findOverviewValue(config.label);
   };
 
   const title = pickText("#productTitle");
 
-  const priceSelectors = [
+  const price = firstText([
     "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
     "#corePrice_feature_div .a-price .a-offscreen",
     "#apex_desktop .a-price .a-offscreen",
     ".priceToPay .a-offscreen",
     "#price .a-offscreen",
     ".a-price .a-offscreen"
-  ];
-  let price = "";
-  for (const sel of priceSelectors) {
-    const t = pickText(sel);
-    if (t) { price = t; break; }
-  }
+  ]);
 
-  const color = pickText("#variation_color_name .selection");
-  const size = pickText("#variation_size_name .selection");
+  const color = pickVariant("color");
+  const size = pickVariant("size");
 
   const qtyEl =
     document.getElementById("quantity") ||
