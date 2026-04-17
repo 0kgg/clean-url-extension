@@ -109,19 +109,31 @@ function extractProduct() {
   };
 
   const collectDetailPairs = () => {
-    const containers = [
+    const containerSelectors = [
       "#productOverview_feature_div",
       "#productDetails_techSpec_section_1",
+      "#productDetails_techSpec_section_2",
       "#productDetails_detailBullets_sections1",
+      "#productDetails_expanderTables_depthLeftSections",
+      "#productDetails_expanderTables_depthRightSections",
       "#detailBullets_feature_div",
       "#poExpander"
     ];
-    const pairs = [];
-    for (const sel of containers) {
-      const root = document.querySelector(sel);
-      if (!root) continue;
+    const roots = new Set();
+    for (const sel of containerSelectors) {
+      const el = document.querySelector(sel);
+      if (el) roots.add(el);
+    }
+    document
+      .querySelectorAll("table.prodDetTable, table.a-keyvalue")
+      .forEach((t) => roots.add(t));
 
+    const pairs = [];
+    const seenTr = new Set();
+    for (const root of roots) {
       root.querySelectorAll("tr").forEach((tr) => {
+        if (seenTr.has(tr)) return;
+        seenTr.add(tr);
         const cells = tr.querySelectorAll("th, td");
         if (cells.length < 2) return;
         const label = normalizeLabel(cells[0].textContent);
