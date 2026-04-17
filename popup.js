@@ -381,7 +381,8 @@ const state = {
   originalTitle: "",
   asin: "",
   brand: "",
-  model: ""
+  model: "",
+  shortenSource: null
 };
 
 async function init() {
@@ -438,6 +439,10 @@ async function init() {
     if (Number.isFinite(n) && n > 0) await saveMaxTokens(n);
   });
 
+  titleEl.addEventListener("input", () => {
+    state.shortenSource = null;
+  });
+
   document.getElementById("copy-btn").addEventListener("click", onCopy);
   document.getElementById("shorten-btn").addEventListener("click", onShorten);
   document.getElementById("model-btn").addEventListener("click", onApplyModel);
@@ -446,9 +451,12 @@ async function init() {
 
 function onShorten() {
   const el = document.getElementById("title");
+  if (state.shortenSource === null) {
+    state.shortenSource = el.value;
+  }
   const n = parseInt(document.getElementById("token-count").value, 10);
   const maxTokens = Number.isFinite(n) && n > 0 ? n : 0;
-  el.value = shortenTitle(el.value, maxTokens);
+  el.value = shortenTitle(state.shortenSource, maxTokens);
 }
 
 function onApplyModel() {
@@ -459,6 +467,7 @@ function onApplyModel() {
   const built = buildModelTitle(state.brand, state.model);
   if (built) {
     document.getElementById("title").value = built;
+    state.shortenSource = null;
     setStatus("");
   }
 }
@@ -466,6 +475,7 @@ function onApplyModel() {
 async function onRevert() {
   document.getElementById("title").value = state.originalTitle;
   document.getElementById("saved-badge").hidden = true;
+  state.shortenSource = null;
   await deleteSavedTitle(state.asin);
   setStatus("");
 }
