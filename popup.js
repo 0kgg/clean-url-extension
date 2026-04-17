@@ -431,6 +431,7 @@ async function init() {
   } else {
     titleEl.value = state.originalTitle;
   }
+  state.shortenSource = titleEl.value;
 
   const tokenEl = document.getElementById("token-count");
   tokenEl.value = await loadMaxTokens();
@@ -440,7 +441,7 @@ async function init() {
   });
 
   titleEl.addEventListener("input", () => {
-    state.shortenSource = null;
+    state.shortenSource = titleEl.value;
   });
 
   document.getElementById("copy-btn").addEventListener("click", onCopy);
@@ -450,13 +451,12 @@ async function init() {
 }
 
 function onShorten() {
-  const el = document.getElementById("title");
-  if (state.shortenSource === null) {
-    state.shortenSource = el.value;
-  }
   const n = parseInt(document.getElementById("token-count").value, 10);
   const maxTokens = Number.isFinite(n) && n > 0 ? n : 0;
-  el.value = shortenTitle(state.shortenSource, maxTokens);
+  document.getElementById("title").value = shortenTitle(
+    state.shortenSource || "",
+    maxTokens
+  );
 }
 
 function onApplyModel() {
@@ -467,15 +467,14 @@ function onApplyModel() {
   const built = buildModelTitle(state.brand, state.model);
   if (built) {
     document.getElementById("title").value = built;
-    state.shortenSource = null;
     setStatus("");
   }
 }
 
 async function onRevert() {
   document.getElementById("title").value = state.originalTitle;
+  state.shortenSource = state.originalTitle;
   document.getElementById("saved-badge").hidden = true;
-  state.shortenSource = null;
   await deleteSavedTitle(state.asin);
   setStatus("");
 }
