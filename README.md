@@ -1,8 +1,18 @@
 # Clean URL Copier
 
-ブラウザアクションを押すとポップアップが開き、現在タブのクリーンURLと、Amazon商品ページから自動抽出した商品名・色・サイズ・単価・個数を編集してまとめてクリップボードへコピーできるChrome拡張です。追跡/アフィリエイト系クエリを削除し、Amazonリンクは `/dp/<ASIN>` に最短化します。
+Amazon 商品ページの URL 整形と、商品情報（商品名・色・サイズ・単価・個数）の整形コピーを 1 アクションで行う Chrome 拡張機能（Manifest V3）。
 
-## 出力フォーマット例
+## 主な機能
+
+- **URL クリーン化** — 追跡・アフィリエイトクエリを削除し、Amazon リンクは `/dp/<ASIN>` 形式に最短化
+- **商品情報の自動抽出** — 商品ページから商品名・価格・色・サイズ・数量を取得してフォームにプリフィル
+- **編集可能プレビュー** — ポップアップ上で確認・修正してからクリップボードへ書き込み
+- **商品名の短縮** — ブランド表記を温存しつつ、詰め込みキーワードをトークン数指定でカット（UI で調整・永続化）
+- **型番ベース再構成** — 商品詳細表から `[ブランド] 型番` を組み立て、発注書向けの正確な表記に
+- **ASIN 別の記憶** — コピーした時点の整えたタイトルを自動保存し、次回同じ商品を開いたときに自動復元
+
+## 出力例
+
 ```
 ・[アメトハレ] レインブーツ ロング 長靴 折りたたみ
 色: ブラック
@@ -11,43 +21,98 @@
 個数：1個
 https://www.amazon.co.jp/dp/B093WN4KDV
 ```
-空欄のフィールドは行ごとスキップされます（商品情報がすべて空なら URL のみコピー）。
 
-## 主な処理
-- 追跡・アフィリエイトクエリの削除（大小無視）
-  `utm_*`, `gclid`, `dclid`, `fbclid`, `msclkid`, `mc_eid`, `ref`, `tag`, `aff`, `aff_id`, `affsource`, `pid`, `vid`, `_branch_match_id` など
-- Amazonリンクをホスト維持のまま `/dp/<ASIN>` に正規化（ASINをパス/クエリから抽出）
-- ポップアップ起動時にAmazon商品ページから商品名（`#productTitle`）、価格（`.a-price .a-offscreen` ほか）、色（`#variation_color_name .selection`）、サイズ（`#variation_size_name .selection`）、個数（`#quantity`）を自動抽出し、フォームへプレビュー
-- フォーム内容は自由に編集可。「コピー」ボタンで整形テキストをクリップボードへ書き込み
+空欄のフィールドはその行ごとスキップされます。商品情報がすべて空の場合は URL のみがコピーされます。
 
-## インストール（ローカル読み込み）
-1. `chrome://extensions` を開き、デベロッパーモードをON。
-2. 「パッケージ化されていない拡張機能を読み込む」で本フォルダを選択。
-   もしくは同梱の `chrome-clean-url.zip` を展開して選択。
-3. ツールバーのアイコンをクリックするとポップアップが開きます。内容を確認・編集し「コピー」を押すとクリップボードへ書き込みます。
+## インストール
+
+1. 本リポジトリをクローン、または ZIP をダウンロードして展開
+2. Chrome で `chrome://extensions` を開き、右上の **デベロッパーモード** を ON
+3. **「パッケージ化されていない拡張機能を読み込む」** をクリックし、本フォルダを選択
+4. ツールバーに拡張アイコンが表示されれば完了
+
+## 使い方
+
+Amazon 商品ページでツールバーのアイコンをクリックするとポップアップが開き、各フィールドが自動入力されます。必要に応じて編集し「コピー」ボタンで整形テキストがクリップボードに入ります。
+
+### ボタン
+| ボタン | 動作 |
+|--------|------|
+| **コピー** | フォーム内容を整形してクリップボードへ。Amazon ページなら編集後タイトルを ASIN 別に自動保存 |
+| **短縮** | 商品名からキーワード詰め込み部分をルールで除去。隣の数値欄が最大トークン数（1–20、ブランド除く） |
+| **型番** | 商品詳細表から `[ブランド] 型番` に置換 |
+| **戻す**（保存済バッジ内） | 保存済みタイトルを破棄して元の Amazon タイトルへ |
+
+### 短縮ロジック
+1. 先頭の `[...]` / `【...】` ブランドを温存
+2. 区切り記号 `|` `｜` `/` `／` `、` `,` `–` `—` のいずれかで切断
+3. 区切りがなければ以下のストップ語彙の前で切断:
+   `メンズ` `レディース` `キッズ` `男女兼用` `男女共用` `ユニセックス` `男性用` `女性用` `日本製` `国産` `送料無料` `プレゼント` `ギフト` `正規品` `並行輸入` `新品` `未使用`
+4. 末尾の括弧塊（`(2024年モデル)` 等）を除去
+5. 重複トークンを除去
+6. 指定されたトークン数で打ち切り
+
+`短縮` は同じ元テキストに対して冪等で、トークン数を変更して再クリックすれば何度でも再計算されます。`型番` 押下は短縮元に影響しません（型番表示 → 短縮 → 元タイトルの短縮結果、という流れが可能）。
+
+### 型番再構成の抽出元
+以下を横断走査し、先に見つかった候補を採用します。
+
+- コンテナ: `#productOverview_feature_div` / `#productDetails_techSpec_section_1,2` / `#productDetails_expanderTables_depthLeftSections,depthRightSections` / `#productDetails_detailBullets_sections1` / `#detailBullets_feature_div` / `#poExpander` / `table.prodDetTable` / `table.a-keyvalue`
+- ブランドラベル: `ブランド` `メーカー` `製造元` `Brand` `Manufacturer`
+- 型番ラベル: `メーカー型番` `Item model number` `型番` `品番` `モデル番号` `Model Number` `Part Number`
 
 ## パーミッション
-- `activeTab`: 現在タブのURL取得
-- `scripting`: 商品ページ（DOM）からの情報抽出
-- `clipboardWrite`: クリップボード書き込み
+| 権限 | 用途 |
+|------|------|
+| `activeTab` | アクティブタブの URL 取得 |
+| `scripting` | 商品ページ DOM からの情報抽出 |
+| `clipboardWrite` | クリップボードへの書き込み |
+| `storage` | ASIN 別の商品名・トークン数設定の永続化 |
 
-## 構成
-- `manifest.json` — MV3 マニフェスト。アイコン/権限/ポップアップを定義。
-- `popup.html` / `popup.js` — ポップアップUIと抽出・整形・コピー処理。
-- `icons/` — 拡張アイコン。`unnamed.jpg` を元に生成。
-- `tools/icon_from_image.py` — `unnamed.jpg` から 16/32/48/128px のPNGを生成するスクリプト（Pillow依存）。
+## データの扱い / プライバシー
 
-## アイコン再生成
-```bash
-py -3 chrome-clean-url\\tools\\icon_from_image.py
+- 本拡張は外部サーバへの通信を一切行いません
+- 保存データ（編集後タイトル・トークン数設定）は `chrome.storage.local` に格納され、ブラウザ内部に留まります
+- 端末間同期はされません（`chrome.storage.sync` は未使用）
+- 保存データは `chrome://extensions` で本拡張を削除すると消去されます
+
+## 既知の制限
+- `chrome://` / `edge://` / `about:` など特殊ページでは URL 取得・DOM 抽出をスキップします
+- Amazon 以外のページでは商品情報は取得されず、URL 欄のみ整形されます（手入力は可能）
+- Amazon の DOM 構造は随時更新されるため、セレクタが効かなくなる可能性があります。その場合はポップアップで手動編集してください
+- JAN コードや外部商品 DB との連携は行いません
+
+## 開発
+
+### ファイル構成
 ```
-Pillow が未導入なら `py -3 -m pip install pillow` を実行してください。
+├── manifest.json                 MV3 マニフェスト
+├── popup.html                    ポップアップ UI
+├── popup.js                      DOM 抽出 / 整形 / コピー / 永続化
+├── icons/                        拡張アイコン (16/32/48/128 px)
+├── tools/
+│   └── icon_from_image.py        unnamed.jpg からアイコン生成（Pillow）
+└── unnamed.jpg                   アイコン生成元画像
+```
 
-## ビルド/配布
-- ローカル読み込み用: フォルダをそのまま指定
-- 配布用zip: `Compress-Archive -Path chrome-clean-url -DestinationPath chrome-clean-url.zip -Force`
+### アイコン再生成
+```bash
+python tools/icon_from_image.py
+```
+Pillow が未導入なら `python -m pip install pillow`。
 
-## 既知の注意
-- `chrome://` などの特殊ページではURL取得・DOM抽出をスキップします（URL欄は空）。
-- Amazon以外のページでは商品情報は取得されません。URL欄のみ埋まり、必要なら各欄を手入力できます。
-- 価格・バリエーションのセレクタはAmazonのDOMに依存するため、将来のUI変更で抽出できなくなる可能性があります。その場合はポップアップで手動入力してください。
+### 配布用 ZIP 作成（任意）
+Windows (PowerShell):
+```powershell
+Compress-Archive -Path .\* -DestinationPath clean-url-copier.zip -Force
+```
+macOS / Linux:
+```bash
+zip -r clean-url-copier.zip . -x '*.git*' '*.zip'
+```
+
+### バグ報告
+Issue / Pull Request を歓迎します。Amazon DOM 起因の抽出不具合を報告する際は、対象商品 URL を添えていただくと原因特定がスムーズです。
+
+## ライセンス
+[MIT License](LICENSE)

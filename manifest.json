@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Clean URL Copier",
-  "description": "拡張アイコンを押すとポップアップを表示し、現在タブのクリーンURLに加えて商品名・色・サイズ・単価・個数を編集してまとめてコピーできます。",
-  "version": "0.2.0",
+  "description": "拡張アイコンを押すとポップアップを表示し、現在タブのクリーンURLに加えて商品名・色・サイズ・単価・個数を編集してまとめてコピーできます。ASIN別にきれいな商品名を保存し次回自動復元、型番ベースの再構成も可能。",
+  "version": "0.3.0",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -12,7 +12,8 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "clipboardWrite"
+    "clipboardWrite",
+    "storage"
   ],
   "action": {
     "default_title": "クリーンURLをコピー",

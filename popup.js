@@ -92,29 +92,135 @@ function removeTrackingParams(url) {
 }
 
 function extractProduct() {
+  const clean = (s) =>
+    (s || "").replace(/[\u200E\u200F]/g, "").replace(/\s+/g, " ").trim();
+  const normalizeLabel = (s) =>
+    clean(s).replace(/[:：\s]+$/, "").toLowerCase();
   const pickText = (sel) => {
     const el = document.querySelector(sel);
-    return el ? el.textContent.trim().replace(/\s+/g, " ") : "";
+    return el ? clean(el.textContent) : "";
+  };
+  const firstText = (selectors) => {
+    for (const sel of selectors) {
+      const t = pickText(sel);
+      if (t) return t;
+    }
+    return "";
+  };
+
+  const collectDetailPairs = () => {
+    const containerSelectors = [
+      "#productOverview_feature_div",
+      "#productDetails_techSpec_section_1",
+      "#productDetails_techSpec_section_2",
+      "#productDetails_detailBullets_sections1",
+      "#productDetails_expanderTables_depthLeftSections",
+      "#productDetails_expanderTables_depthRightSections",
+      "#detailBullets_feature_div",
+      "#poExpander"
+    ];
+    const roots = new Set();
+    for (const sel of containerSelectors) {
+      const el = document.querySelector(sel);
+      if (el) roots.add(el);
+    }
+    document
+      .querySelectorAll("table.prodDetTable, table.a-keyvalue")
+      .forEach((t) => roots.add(t));
+
+    const pairs = [];
+    const seenTr = new Set();
+    for (const root of roots) {
+      root.querySelectorAll("tr").forEach((tr) => {
+        if (seenTr.has(tr)) return;
+        seenTr.add(tr);
+        const cells = tr.querySelectorAll("th, td");
+        if (cells.length < 2) return;
+        const label = normalizeLabel(cells[0].textContent);
+        const value = clean(cells[cells.length - 1].textContent);
+        if (label && value && label !== value.toLowerCase()) {
+          pairs.push({ label, value });
+        }
+      });
+
+      root.querySelectorAll("li > span.a-list-item").forEach((outer) => {
+        const labelEl = outer.querySelector("span.a-text-bold");
+        if (!labelEl) return;
+        const valueEl = labelEl.nextElementSibling;
+        if (!valueEl) return;
+        const label = normalizeLabel(labelEl.textContent);
+        const value = clean(valueEl.textContent);
+        if (label && value) pairs.push({ label, value });
+      });
+    }
+    return pairs;
+  };
+
+  const findDetailValue = (pairs, labels) => {
+    for (const candidate of labels) {
+      const target = candidate.toLowerCase();
+      const match = pairs.find((p) => p.label === target);
+      if (match && match.value) return match.value;
+    }
+    return "";
+  };
+
+  const findOverviewValue = (labelRegex) => {
+    const rows = document.querySelectorAll(
+      "#productOverview_feature_div tr, #productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr"
+    );
+    for (const row of rows) {
+      const cells = row.querySelectorAll("td, th");
+      if (cells.length < 2) continue;
+      const label = clean(cells[0].textContent);
+      if (labelRegex.test(label)) {
+        const val = clean(cells[cells.length - 1].textContent);
+        if (val && val !== label) return val;
+      }
+    }
+    return "";
+  };
+
+  const pickVariant = (kind) => {
+    const config = {
+      color: {
+        selectors: [
+          "#variation_color_name .selection",
+          "#inline-twister-expanded-dimension-text-color_name",
+          "#inline-twister-row-color_name .a-truncate-cut",
+          "tr.po-color td:nth-child(2) span.po-break-word",
+          "tr.po-color td:nth-child(2) span"
+        ],
+        label: /(色|カラー|color)/i
+      },
+      size: {
+        selectors: [
+          "#variation_size_name .selection",
+          "#inline-twister-expanded-dimension-text-size_name",
+          "#inline-twister-row-size_name .a-truncate-cut",
+          "tr.po-size td:nth-child(2) span.po-break-word",
+          "tr.po-size td:nth-child(2) span",
+          "#variation_style_name .selection"
+        ],
+        label: /(サイズ|寸法|size)/i
+      }
+    }[kind];
+    return firstText(config.selectors) || findOverviewValue(config.label);
   };
 
   const title = pickText("#productTitle");
 
-  const priceSelectors = [
+  const price = firstText([
     "#corePriceDisplay_desktop_feature_div .a-price .a-offscreen",
     "#corePrice_feature_div .a-price .a-offscreen",
     "#apex_desktop .a-price .a-offscreen",
     ".priceToPay .a-offscreen",
     "#price .a-offscreen",
     ".a-price .a-offscreen"
-  ];
-  let price = "";
-  for (const sel of priceSelectors) {
-    const t = pickText(sel);
-    if (t) { price = t; break; }
-  }
+  ]);
 
-  const color = pickText("#variation_color_name .selection");
-  const size = pickText("#variation_size_name .selection");
+  const color = pickVariant("color");
+  const size = pickVariant("size");
 
   const qtyEl =
     document.getElementById("quantity") ||
@@ -122,7 +228,130 @@ function extractProduct() {
   const q = qtyEl && qtyEl.value ? parseInt(qtyEl.value, 10) : NaN;
   const quantity = Number.isFinite(q) && q > 0 ? q : 1;
 
-  return { title, price, color, size, quantity };
+  const pairs = collectDetailPairs();
+  const brand = findDetailValue(pairs, [
+    "ブランド",
+    "メーカー",
+    "製造元",
+    "brand",
+    "manufacturer"
+  ]);
+  const model = findDetailValue(pairs, [
+    "メーカー型番",
+    "item model number",
+    "型番",
+    "品番",
+    "モデル番号",
+    "model number",
+    "part number"
+  ]);
+
+  return { title, price, color, size, quantity, brand, model };
+}
+
+const SHORTEN_STOP_KEYWORDS = [
+  "メンズ", "レディース", "キッズ",
+  "男女兼用", "男女共用", "ユニセックス", "男性用", "女性用",
+  "日本製", "国産", "送料無料",
+  "プレゼント", "ギフト",
+  "正規品", "並行輸入", "新品", "未使用"
+];
+
+function shortenTitle(text, maxTokens) {
+  const original = (text || "").trim();
+  if (!original) return text;
+
+  let brand = "";
+  let rest = original;
+  const brandMatch = rest.match(/^\s*([\[【][^\]】]+[\]】])\s*/);
+  if (brandMatch) {
+    brand = brandMatch[1].trim();
+    rest = rest.slice(brandMatch[0].length).trim();
+  }
+
+  let cut = rest;
+  const delimMatch = rest.match(/\s*[|｜/／、,–—]\s*/);
+  if (delimMatch && delimMatch.index > 0) {
+    cut = rest.slice(0, delimMatch.index).trim();
+  } else {
+    for (const kw of SHORTEN_STOP_KEYWORDS) {
+      const idx = rest.indexOf(kw);
+      if (idx > 3) {
+        cut = rest.slice(0, idx).trim();
+        break;
+      }
+    }
+  }
+
+  cut = cut.replace(/\s*[（(《〈][^）)》〉]*[）)》〉]\s*$/u, "").trim();
+
+  const tokens = cut.split(/\s+/);
+  const seen = new Set();
+  const deduped = [];
+  for (const t of tokens) {
+    const key = t.toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      deduped.push(t);
+    }
+  }
+
+  const cap = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 0;
+  const capped = cap && deduped.length > cap ? deduped.slice(0, cap) : deduped;
+  cut = capped.join(" ");
+
+  cut = cut.replace(/[\s　・･:：,、。\-–—]+$/u, "").trim();
+  if (cut.length < 3) return text;
+
+  return brand ? `${brand} ${cut}`.trim() : cut;
+}
+
+function buildModelTitle(brand, model) {
+  if (!model) return "";
+  return brand ? `[${brand}] ${model}` : model;
+}
+
+async function loadSavedTitle(asin) {
+  if (!asin) return "";
+  try {
+    const { titles = {} } = await chrome.storage.local.get("titles");
+    return titles[asin] || "";
+  } catch (_err) {
+    return "";
+  }
+}
+
+async function saveTitle(asin, title) {
+  if (!asin || !title) return;
+  try {
+    const { titles = {} } = await chrome.storage.local.get("titles");
+    titles[asin] = title;
+    await chrome.storage.local.set({ titles });
+  } catch (_err) {}
+}
+
+async function deleteSavedTitle(asin) {
+  if (!asin) return;
+  try {
+    const { titles = {} } = await chrome.storage.local.get("titles");
+    delete titles[asin];
+    await chrome.storage.local.set({ titles });
+  } catch (_err) {}
+}
+
+async function loadMaxTokens() {
+  try {
+    const { maxTokens = 5 } = await chrome.storage.local.get("maxTokens");
+    return Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : 5;
+  } catch (_err) {
+    return 5;
+  }
+}
+
+async function saveMaxTokens(n) {
+  try {
+    await chrome.storage.local.set({ maxTokens: n });
+  } catch (_err) {}
 }
 
 function formatOutput({ title, color, size, price, quantity, url }) {
@@ -148,6 +377,14 @@ function setStatus(message, isError = false) {
   el.className = isError ? "status error" : "status";
 }
 
+const state = {
+  originalTitle: "",
+  asin: "",
+  brand: "",
+  model: "",
+  shortenSource: null
+};
+
 async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const rawUrl = tab?.url || "";
@@ -155,6 +392,15 @@ async function init() {
   const cleaned = usable ? cleanUrl(rawUrl) : rawUrl;
 
   document.getElementById("url").value = cleaned;
+
+  if (usable) {
+    try {
+      const u = new URL(rawUrl);
+      if (AMAZON_HOST.test(u.hostname)) {
+        state.asin = extractAsin(u) || "";
+      }
+    } catch (_err) {}
+  }
 
   if (tab && usable) {
     try {
@@ -164,7 +410,9 @@ async function init() {
       });
       const data = results?.[0]?.result;
       if (data) {
-        document.getElementById("title").value = data.title || "";
+        state.originalTitle = data.title || "";
+        state.brand = data.brand || "";
+        state.model = data.model || "";
         document.getElementById("price").value = data.price || "";
         document.getElementById("color").value = data.color || "";
         document.getElementById("size").value = data.size || "";
@@ -175,12 +423,66 @@ async function init() {
     }
   }
 
+  const saved = await loadSavedTitle(state.asin);
+  const titleEl = document.getElementById("title");
+  if (saved) {
+    titleEl.value = saved;
+    document.getElementById("saved-badge").hidden = false;
+  } else {
+    titleEl.value = state.originalTitle;
+  }
+  state.shortenSource = titleEl.value;
+
+  const tokenEl = document.getElementById("token-count");
+  tokenEl.value = await loadMaxTokens();
+  tokenEl.addEventListener("change", async () => {
+    const n = parseInt(tokenEl.value, 10);
+    if (Number.isFinite(n) && n > 0) await saveMaxTokens(n);
+  });
+
+  titleEl.addEventListener("input", () => {
+    state.shortenSource = titleEl.value;
+  });
+
   document.getElementById("copy-btn").addEventListener("click", onCopy);
+  document.getElementById("shorten-btn").addEventListener("click", onShorten);
+  document.getElementById("model-btn").addEventListener("click", onApplyModel);
+  document.getElementById("revert-btn").addEventListener("click", onRevert);
+}
+
+function onShorten() {
+  const n = parseInt(document.getElementById("token-count").value, 10);
+  const maxTokens = Number.isFinite(n) && n > 0 ? n : 0;
+  document.getElementById("title").value = shortenTitle(
+    state.shortenSource || "",
+    maxTokens
+  );
+}
+
+function onApplyModel() {
+  if (!state.model) {
+    setStatus("型番が見つかりません", true);
+    return;
+  }
+  const built = buildModelTitle(state.brand, state.model);
+  if (built) {
+    document.getElementById("title").value = built;
+    setStatus("");
+  }
+}
+
+async function onRevert() {
+  document.getElementById("title").value = state.originalTitle;
+  state.shortenSource = state.originalTitle;
+  document.getElementById("saved-badge").hidden = true;
+  await deleteSavedTitle(state.asin);
+  setStatus("");
 }
 
 async function onCopy() {
+  const title = document.getElementById("title").value.trim();
   const text = formatOutput({
-    title: document.getElementById("title").value.trim(),
+    title,
     color: document.getElementById("color").value.trim(),
     size: document.getElementById("size").value.trim(),
     price: document.getElementById("price").value.trim(),
@@ -191,6 +493,11 @@ async function onCopy() {
   try {
     await navigator.clipboard.writeText(text);
     setStatus("コピーしました");
+
+    if (state.asin && title && title !== state.originalTitle) {
+      await saveTitle(state.asin, title);
+      document.getElementById("saved-badge").hidden = false;
+    }
   } catch (_err) {
     setStatus("コピーに失敗しました", true);
   }
