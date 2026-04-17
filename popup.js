@@ -306,9 +306,23 @@ function shortenTitle(text) {
 function buildModelTitle(originalTitle, brand, model) {
   if (!model) return "";
   const shortened = shortenTitle(originalTitle || "");
-  const hint = shortened
+  let hint = shortened
     .replace(/^\s*[\[【][^\]】]+[\]】]\s*/, "")
     .trim();
+
+  if (brand && hint.toLowerCase().startsWith(brand.toLowerCase())) {
+    const after = hint.charAt(brand.length);
+    if (!after || /\s/.test(after)) {
+      hint = hint.slice(brand.length).trim();
+    }
+  }
+
+  const MAX_HINT_TOKENS = 4;
+  const tokens = hint.split(/\s+/).filter(Boolean);
+  if (tokens.length > MAX_HINT_TOKENS) {
+    hint = tokens.slice(0, MAX_HINT_TOKENS).join(" ");
+  }
+
   const prefix = brand ? `[${brand}] ${model}` : model;
   return hint ? `${prefix} ${hint}` : prefix;
 }
