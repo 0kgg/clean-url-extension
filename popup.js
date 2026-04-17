@@ -171,6 +171,46 @@ function extractProduct() {
   return { title, price, color, size, quantity };
 }
 
+const SHORTEN_STOP_KEYWORDS = [
+  "メンズ", "レディース", "キッズ",
+  "男女兼用", "男女共用", "ユニセックス", "男性用", "女性用",
+  "日本製", "国産", "送料無料",
+  "プレゼント", "ギフト",
+  "正規品", "並行輸入", "新品", "未使用"
+];
+
+function shortenTitle(text) {
+  const original = (text || "").trim();
+  if (!original) return text;
+
+  let brand = "";
+  let rest = original;
+  const brandMatch = rest.match(/^\s*([\[【][^\]】]+[\]】])\s*/);
+  if (brandMatch) {
+    brand = brandMatch[1].trim();
+    rest = rest.slice(brandMatch[0].length).trim();
+  }
+
+  let cut = rest;
+  const delimMatch = rest.match(/\s*[|｜/／、,–—]\s*/);
+  if (delimMatch && delimMatch.index > 0) {
+    cut = rest.slice(0, delimMatch.index).trim();
+  } else {
+    for (const kw of SHORTEN_STOP_KEYWORDS) {
+      const idx = rest.indexOf(kw);
+      if (idx > 3) {
+        cut = rest.slice(0, idx).trim();
+        break;
+      }
+    }
+  }
+
+  cut = cut.replace(/[\s　・･:：,、。\-–—]+$/u, "").trim();
+  if (cut.length < 3) return text;
+
+  return brand ? `${brand} ${cut}`.trim() : cut;
+}
+
 function formatOutput({ title, color, size, price, quantity, url }) {
   const lines = [];
   const hasProductInfo = Boolean(title || color || size || price);
@@ -222,6 +262,10 @@ async function init() {
   }
 
   document.getElementById("copy-btn").addEventListener("click", onCopy);
+  document.getElementById("shorten-btn").addEventListener("click", () => {
+    const el = document.getElementById("title");
+    el.value = shortenTitle(el.value);
+  });
 }
 
 async function onCopy() {
