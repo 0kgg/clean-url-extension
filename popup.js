@@ -305,10 +305,10 @@ function shortenTitle(text) {
 
 function buildModelTitle(originalTitle, brand, model) {
   if (!model) return "";
-  const restTitle = (originalTitle || "")
+  const shortened = shortenTitle(originalTitle || "");
+  const hint = shortened
     .replace(/^\s*[\[【][^\]】]+[\]】]\s*/, "")
     .trim();
-  const hint = restTitle.slice(0, 12).trim();
   const prefix = brand ? `[${brand}] ${model}` : model;
   return hint ? `${prefix} ${hint}` : prefix;
 }
